@@ -148,7 +148,7 @@ public class OAuth2Base {
 	}
 	
 	/** Stores our current token(s) in the keychain. */
-	internal func storeTokensToKeychain() {
+	public func storeTokensToKeychain() {
 		if let items = storableTokenItems() {
 			logger?.debug("OAuth2", msg: "Storing tokens to keychain")
 			let keychain = OAuth2KeychainAccount(oauth2: self, account: OAuth2KeychainCredentialsKey, data: items)
