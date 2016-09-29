@@ -3,7 +3,7 @@
 //  OAuth2
 //
 //  Created by Guilherme Rambo on 18/01/16.
-//  Copyright 2014 Pascal Pfiffner
+//  Copyright 2016 Pascal Pfiffner
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -17,15 +17,19 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //
+#if os(macOS)
 
 import Cocoa
 import WebKit
+#if !NO_MODULE_IMPORT
+import Base
+#endif
 
 
 /**
 A view controller that allows you to display the login/authorization screen.
 */
-@available(OSX 10.10, *)
+@available(macOS 10.10, *)
 public class OAuth2WebViewController: NSViewController, WKNavigationDelegate, NSWindowDelegate {
 	
 	init() {
@@ -33,7 +37,7 @@ public class OAuth2WebViewController: NSViewController, WKNavigationDelegate, NS
 	}
 	
 	/// Handle to the OAuth2 instance in play, only used for debug logging at this time.
-	var oauth: OAuth2?
+	var oauth: OAuth2Base?
 	
 	/// Configure the view to be shown as sheet, false by default; must be present before the view gets loaded.
 	var willBecomeSheet = false
@@ -68,7 +72,7 @@ public class OAuth2WebViewController: NSViewController, WKNavigationDelegate, NS
 	
 	/// Closure called when the web view gets asked to load the redirect URL, specified in `interceptURLString`. Return a Bool indicating
 	/// that you've intercepted the URL.
-	var onIntercept: ((url: URL) -> Bool)?
+	var onIntercept: ((URL) -> Bool)?
 	
 	/// Called when the web view is about to be dismissed manually.
 	var onWillCancel: ((Void) -> Void)?
@@ -101,11 +105,11 @@ public class OAuth2WebViewController: NSViewController, WKNavigationDelegate, NS
 	
 	// MARK: - View Handling
 	
-	internal static let WebViewWindowWidth = CGFloat(600.0)
-	internal static let WebViewWindowHeight = CGFloat(500.0)
+	internal static let webViewWindowWidth = CGFloat(600.0)
+	internal static let webViewWindowHeight = CGFloat(500.0)
 	
 	override public func loadView() {
-		view = NSView(frame: NSMakeRect(0, 0, OAuth2WebViewController.WebViewWindowWidth, OAuth2WebViewController.WebViewWindowHeight))
+		view = NSView(frame: NSMakeRect(0, 0, OAuth2WebViewController.webViewWindowWidth, OAuth2WebViewController.webViewWindowHeight))
 		view.translatesAutoresizingMaskIntoConstraints = false
 		
 		webView = WKWebView(frame: view.bounds, configuration: WKWebViewConfiguration())
@@ -147,7 +151,7 @@ public class OAuth2WebViewController: NSViewController, WKNavigationDelegate, NS
 		}
 	}
 	
-	public override func viewDidAppear() {
+	override public func viewDidAppear() {
 		super.viewDidAppear()
 		
 		view.window?.delegate = self
@@ -197,20 +201,21 @@ public class OAuth2WebViewController: NSViewController, WKNavigationDelegate, NS
 	
 	// MARK: - Web View Delegate
 	
+	@nonobjc
 	public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: (WKNavigationActionPolicy) -> Void) {
 		let request = navigationAction.request
 		
-		if nil == onIntercept {
+		guard let onIntercept = onIntercept else {
 			decisionHandler(.allow)
 			return
 		}
 		
 		// we compare the scheme and host first, then check the path (if there is any). Not sure if a simple string comparison
 		// would work as there may be URL parameters attached
-		if let url = request.url where url.scheme == interceptComponents?.scheme && url.host == interceptComponents?.host {
+		if let url = request.url, url.scheme == interceptComponents?.scheme && url.host == interceptComponents?.host {
 			let haveComponents = URLComponents(url: url, resolvingAgainstBaseURL: true)
-			if let hp = haveComponents?.path, ip = interceptComponents?.path where hp == ip || ("/" == hp + ip) {
-				if onIntercept!(url: url) {
+			if let hp = haveComponents?.path, let ip = interceptComponents?.path, hp == ip || ("/" == hp + ip) {
+				if onIntercept(url) {
 					decisionHandler(.cancel)
 				}
 				else {
@@ -223,18 +228,17 @@ public class OAuth2WebViewController: NSViewController, WKNavigationDelegate, NS
 	}
 	
 	public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-		if let scheme = interceptComponents?.scheme where "urn" == scheme {
-			if let path = interceptComponents?.path where path.hasPrefix("ietf:wg:oauth:2.0:oob") {
-				if let title = webView.title where title.hasPrefix("Success ") {
+		if let scheme = interceptComponents?.scheme, "urn" == scheme {
+			if let path = interceptComponents?.path, path.hasPrefix("ietf:wg:oauth:2.0:oob") {
+				if let title = webView.title, title.hasPrefix("Success ") {
 					oauth?.logger?.debug("OAuth2", msg: "Creating redirect URL from document.title")
 					let qry = title.replacingOccurrences(of: "Success ", with: "")
 					if let url = URL(string: "http://localhost/?\(qry)") {
-						onIntercept?(url: url)
+						_ = onIntercept?(url)
 						return
 					}
-					else {
-						oauth?.logger?.warn("OAuth2", msg: "Failed to create a URL with query parts \"\(qry)\"")
-					}
+					
+					oauth?.logger?.warn("OAuth2", msg: "Failed to create a URL with query parts \"\(qry)\"")
 				}
 			}
 		}
@@ -243,8 +247,8 @@ public class OAuth2WebViewController: NSViewController, WKNavigationDelegate, NS
 		hideLoadingIndicator()
 	}
 	
-	public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: NSError) {
-		if NSURLErrorDomain == error.domain && NSURLErrorCancelled == error.code {
+	public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+		if NSURLErrorDomain == error._domain && NSURLErrorCancelled == error._code {
 			return
 		}
 		// do we still need to intercept "WebKitErrorDomain" error 102?
@@ -255,9 +259,11 @@ public class OAuth2WebViewController: NSViewController, WKNavigationDelegate, NS
 	
 	// MARK: - Window Delegate
 	
+	@nonobjc
 	public func windowShouldClose(_ sender: AnyObject) -> Bool {
 		onWillCancel?()
 		return false
 	}
 }
 
+#endif

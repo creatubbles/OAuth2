@@ -1,5 +1,5 @@
 //
-//  OAuth2DynReg_Tests.swift
+//  OAuth2DynRegTests.swift
 //  OAuth2
 //
 //  Created by Pascal Pfiffner on 12/2/15.
@@ -19,11 +19,19 @@
 //
 
 import XCTest
+
+#if !NO_MODULE_IMPORT
+@testable
+import Base
+@testable
+import Flows
+#else
 @testable
 import OAuth2
+#endif
 
 
-class OAuth2DynReg_Tests: XCTestCase {
+class OAuth2DynRegTests: XCTestCase {
 	
 	func genericOAuth2(_ extra: OAuth2JSON? = nil) -> OAuth2 {
 		var settings = [
@@ -46,7 +54,7 @@ class OAuth2DynReg_Tests: XCTestCase {
 		dynreg.extraHeaders = ["Foo": "Bar & Hat"]
 		
 		do {
-			let req = try dynreg.registrationRequest(oauth)
+			let req = try dynreg.registrationRequest(for: oauth)
 			XCTAssertEqual("register.ful.io", req.url?.host)
 			XCTAssertEqual("POST", req.httpMethod)
 			let dict = try oauth.parseJSON(req.httpBody!)
@@ -64,7 +72,7 @@ class OAuth2DynReg_Tests: XCTestCase {
 	func testNotAttemptingRegistration() {
 		let oauth = genericOAuth2()
 		oauth.registerClientIfNeeded() { json, error in
-			if let error = error as? OAuth2Error {
+			if let error = error {
 				switch error {
 				case .noRegistrationURL: break
 				default:                 XCTAssertTrue(false, "Expecting no-registration-url error")
@@ -90,7 +98,7 @@ class OAuth2DynReg_Tests: XCTestCase {
 			return OAuth2TestDynReg()
 		}
 		oauth.registerClientIfNeeded() { json, error in
-			if let error = error as? OAuth2Error {
+			if let error = error {
 				switch error {
 				case .temporarilyUnavailable: break
 				default:                      XCTAssertTrue(false, "Expecting random `TemporarilyUnavailable` error as implemented in `OAuth2TestDynReg`")
@@ -105,8 +113,8 @@ class OAuth2DynReg_Tests: XCTestCase {
 
 
 class OAuth2TestDynReg: OAuth2DynReg {
-	override func registerClient(_ client: OAuth2, callback: ((json: OAuth2JSON?, error: ErrorProtocol?) -> Void)) {
-		callback(json: nil, error: OAuth2Error.temporarilyUnavailable)
+	override func register(client: OAuth2, callback: @escaping ((OAuth2JSON?, OAuth2Error?) -> Void)) {
+		callback(nil, OAuth2Error.temporarilyUnavailable)
 	}
 }
 

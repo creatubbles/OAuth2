@@ -1,5 +1,5 @@
 //
-//  OAuth2AuthRequest_tests.swift
+//  OAuth2AuthRequestTests.swift
 //  OAuth2
 //
 //  Created by Pascal Pfiffner on 18/03/16.
@@ -19,11 +19,19 @@
 //
 
 import XCTest
+
+#if !NO_MODULE_IMPORT
+@testable
+import Base
+@testable
+import Flows
+#else
 @testable
 import OAuth2
+#endif
 
 
-class OAuth2AuthRequest_Tests: XCTestCase {
+class OAuth2AuthRequestTests: XCTestCase {
 	
 	func testMethod() {
 		let url = URL(string: "http://localhost")!
@@ -38,12 +46,22 @@ class OAuth2AuthRequest_Tests: XCTestCase {
 	func testContentType() {
 		let url = URL(string: "http://localhost")!
 		let req = OAuth2AuthRequest(url: url)
-		XCTAssertTrue(req.contentType == .WWWForm)
+		XCTAssertTrue(req.contentType == .wwwForm)
 		XCTAssertEqual("application/x-www-form-urlencoded; charset=utf-8", req.contentType.rawValue)
 		
-		req.contentType = .JSON
-		XCTAssertTrue(req.contentType == .JSON)
+		req.contentType = .json
+		XCTAssertTrue(req.contentType == .json)
 		XCTAssertEqual("application/json", req.contentType.rawValue)
+	}
+	
+	func testHeaders() {
+		let url = URL(string: "http://localhost")!
+		let req = OAuth2AuthRequest(url: url)
+		XCTAssertTrue(0 == req.params.count)
+		XCTAssertNil(req.headers)
+		
+		req.set(header: "Authorize", to: "Basic abc==")
+		XCTAssertEqual(1, req.headers?.count)
 	}
 	
 	func testParams() {
@@ -53,12 +71,12 @@ class OAuth2AuthRequest_Tests: XCTestCase {
 		
 		req.params["a"] = "A"
 		XCTAssertTrue(1 == req.params.count)
-		req.addParams(params: ["a": "AA", "b": "B"])
+		req.add(params: ["a": "AA", "b": "B"])
 		XCTAssertTrue(2 == req.params.count)
 		XCTAssertEqual("AA", req.params["a"])
 		
 		req.params["c"] = "A complicated/surprising name & character=fun"
-		req.params.removeValueForKey("b")
+		req.params.removeValue(forKey: "b")
 		XCTAssertTrue(2 == req.params.count)
 		let str = req.params.percentEncodedQueryString()
 		XCTAssertEqual("a=AA&c=A+complicated%2Fsurprising+name+%26+character%3Dfun", str)
@@ -67,13 +85,13 @@ class OAuth2AuthRequest_Tests: XCTestCase {
 	func testURLComponents() {
 		let reqNoTLS = OAuth2AuthRequest(url: URL(string: "http://not.tls.com")!)
 		do {
-			try reqNoTLS.asURLComponents()
+			_ = try reqNoTLS.asURLComponents()
 			XCTAssertTrue(false, "Must no longer be here, must throw because we're not using TLS")
 		}
 		catch OAuth2Error.notUsingTLS {
 		}
 		catch let error {
-			XCTAssertTrue(false, "Must throw “.NotUsingTLS” but threw \(error)")
+			XCTAssertTrue(false, "Must throw “.notUsingTLS” but threw \(error)")
 		}
 		
 		let reqP = OAuth2AuthRequest(url: URL(string: "https://auth.io")!)
@@ -107,7 +125,7 @@ class OAuth2AuthRequest_Tests: XCTestCase {
 		let oauth = OAuth2(settings: settings)
 		let reqH = OAuth2AuthRequest(url: URL(string: "https://auth.io")!)
 		do {
-			let request = try reqH.asURLRequestFor(oauth)
+			let request = try reqH.asURLRequest(for: oauth)
 			XCTAssertEqual("Basic aWQ6c2VjcmV0", request.value(forHTTPHeaderField: "Authorization"))
 			XCTAssertNil(request.httpBody)		// because no params are left
 		}
@@ -115,11 +133,27 @@ class OAuth2AuthRequest_Tests: XCTestCase {
 			XCTAssertTrue(false, "Must not throw but threw \(error)")
 		}
 		
+		// test header override
+		reqH.set(header: "Authorization", to: "Basic def==")
+		reqH.set(header: "Accept", to: "text/plain, */*")
+		do {
+			let request = try reqH.asURLRequest(for: oauth)
+			XCTAssertEqual("Basic def==", request.value(forHTTPHeaderField: "Authorization"))
+			XCTAssertEqual("text/plain, */*", request.value(forHTTPHeaderField: "Accept"))
+			XCTAssertNil(request.httpBody)		// because no params are left
+		}
+		catch let error {
+			XCTAssertTrue(false, "Must not throw but threw \(error)")
+		}
+		
+		// test no Auth header
 		oauth.authConfig.secretInBody = true
 		let reqB = OAuth2AuthRequest(url: URL(string: "https://auth.io")!)
 		do {
-			let request = try reqB.asURLRequestFor(oauth)
-			XCTAssertEqual("client_id=id&client_secret=secret", String(data: request.httpBody!, encoding: String.Encoding.utf8))
+			let request = try reqB.asURLRequest(for: oauth)
+			let response = String(data: request.httpBody!, encoding: String.Encoding.utf8) ?? ""
+			XCTAssertTrue(response.contains("client_id=id"))
+			XCTAssertTrue(response.contains("client_secret=secret"))
 			XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
 		}
 		catch let error {

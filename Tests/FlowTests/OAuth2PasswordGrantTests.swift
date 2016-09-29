@@ -1,5 +1,5 @@
 //
-//  OAuth2PasswordGrant_Tests.swift
+//  OAuth2PasswordGrantTests.swift
 //  OAuth2
 //
 //  Created by Tim Sneed on 6/5/15.
@@ -17,13 +17,22 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //
+
 import XCTest
 
+#if !NO_MODULE_IMPORT
+@testable
+import Base
+@testable
+import Flows
+#else
 @testable
 import OAuth2
+#endif
 
-class OAuth2PasswordGrantTests: XCTestCase
-{
+
+class OAuth2PasswordGrantTests: XCTestCase {
+	
 	func genericOAuth2Password() -> OAuth2PasswordGrant {
 		return OAuth2PasswordGrant(settings: [
 			"client_id": "abc",
@@ -49,7 +58,7 @@ class OAuth2PasswordGrantTests: XCTestCase
 	
 	func testTokenRequest() {
 		let oauth = genericOAuth2Password()
-		let request = try! oauth.tokenRequest().asURLRequestFor(oauth)
+		let request = try! oauth.accessTokenRequest().asURLRequest(for: oauth)
 		XCTAssertEqual("POST", request.httpMethod, "Must be a POST request")
 		
 		let authHeader = request.allHTTPHeaderFields?["Authorization"]
@@ -58,20 +67,23 @@ class OAuth2PasswordGrantTests: XCTestCase
 		
 		let body = String(data: request.httpBody!, encoding: String.Encoding.utf8)
 		XCTAssertNotNil(body, "Body data must be present")
-		XCTAssertEqual(body!, "username=My+User&grant_type=password&scope=login+and+more&password=Here+is+my+password", "Must create correct request body")
+		XCTAssertTrue(body!.contains("username=My+User"), "Must create correct request body")
+		XCTAssertTrue(body!.contains("grant_type=password"), "Must create correct request body")
+		XCTAssertTrue(body!.contains("scope=login+and+more"), "Must create correct request body")
+		XCTAssertTrue(body!.contains("password=Here+is+my+password"), "Must create correct request body")
 	}
 	
 	func testTokenResponse() {
 		let oauth = genericOAuth2Password()
 		let response = [
-			"access_token":"2YotnFZFEjr1zCsicMWpAA",
-			"token_type":"bearer",
-			"expires_in":3600,
-			"refresh_token":"tGzv3JOkF0XG5Qx2TlKWIA",
-			"foo":"bar"
-		]
+			"access_token": "2YotnFZFEjr1zCsicMWpAA",
+			"token_type": "bearer",
+			"expires_in": 3600,
+			"refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
+			"foo": "bar"
+		] as [String: Any]
 		do {
-			let dict = try oauth.parseAccessTokenResponse(response)
+			let dict = try oauth.parseAccessTokenResponse(params: response)
 			XCTAssertEqual("bar", dict["foo"] as? String)
 			XCTAssertEqual("2YotnFZFEjr1zCsicMWpAA", oauth.accessToken, "Must extract access token")
 			XCTAssertNotNil(oauth.accessTokenExpiry, "Must extract access token expiry date")
@@ -85,17 +97,20 @@ class OAuth2PasswordGrantTests: XCTestCase
 	func testTokenRequestNoScope() {
 		let oauth = OAuth2PasswordGrant(settings: [
 			"client_id": "abc",
-			"client_secret": "def",
 			"authorize_uri": "https://auth.ful.io",
 			"username":"My User",
 			"password":"Here is my password",
 			"verbose": true
 		])
-		let request = try! oauth.tokenRequest(params: ["foo": "bar & hat"]).asURLRequestFor(oauth)
+		let request = try! oauth.accessTokenRequest(params: ["foo": "bar & hat"]).asURLRequest(for: oauth)
 		
 		let body = String(data: request.httpBody!, encoding: String.Encoding.utf8)
 		XCTAssertNotNil(body, "Body data must be present")
-		XCTAssertEqual(body!, "username=My+User&grant_type=password&foo=bar+%26+hat&password=Here+is+my+password", "Must create correct request body")
+		XCTAssertTrue(body!.contains("grant_type=password"), "Must create correct request body")
+		XCTAssertTrue(body!.contains("username=My+User"), "Must create correct request body")
+		XCTAssertTrue(body!.contains("password=Here+is+my+password"), "Must create correct request body")
+		XCTAssertTrue(body!.contains("client_id=abc"), "Must add client_id to request body")
+		XCTAssertTrue(body!.contains("foo=bar+%26+hat"), "Must create correct request body")
 	}
 }
 
