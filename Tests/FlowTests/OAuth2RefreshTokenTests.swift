@@ -1,5 +1,5 @@
 //
-//  OAuth2RefreshToken_tests.swift
+//  OAuth2RefreshTokenTests.swift
 //  OAuth2
 //
 //  Created by Pascal Pfiffner on 12/20/15.
@@ -18,13 +18,17 @@
 //  limitations under the License.
 //
 
-#if os(OSX)
-import Cocoa
-#endif
 import XCTest
 
+#if !NO_MODULE_IMPORT
+@testable
+import Base
+@testable
+import Flows
+#else
 @testable
 import OAuth2
+#endif
 
 
 class OAuth2RefreshTokenTests: XCTestCase {
@@ -41,7 +45,7 @@ class OAuth2RefreshTokenTests: XCTestCase {
 	func testCannotRefresh() {
 		let oauth = genericOAuth2()
 		do {
-			let _ = try oauth.tokenRequestForTokenRefresh().asURLRequestFor(oauth)
+			_ = try oauth.tokenRequestForTokenRefresh().asURLRequest(for: oauth)
 			XCTAssertTrue(false, "Should throw when trying to create refresh token request without refresh token")
 		}
 		catch OAuth2Error.noRefreshToken {
@@ -55,7 +59,7 @@ class OAuth2RefreshTokenTests: XCTestCase {
 		let oauth = genericOAuth2()
 		oauth.clientConfig.refreshToken = "pov"
 		
-		let req = try? oauth.tokenRequestForTokenRefresh().asURLRequestFor(oauth)
+		let req = try? oauth.tokenRequestForTokenRefresh().asURLRequest(for: oauth)
 		XCTAssertNotNil(req)
 		XCTAssertNotNil(req?.url)
 		XCTAssertNotNil(req?.httpBody)
@@ -65,7 +69,7 @@ class OAuth2RefreshTokenTests: XCTestCase {
 		XCTAssertNil(params)
 		let body = String(data: req!.httpBody!, encoding: String.Encoding.utf8)
 		XCTAssertNotNil(body)
-		let dict = OAuth2.paramsFromQuery(body!)
+		let dict = OAuth2.params(fromQuery: body!)
 		XCTAssertEqual(dict["client_id"], "abc")
 		XCTAssertEqual(dict["refresh_token"], "pov")
 		XCTAssertEqual(dict["grant_type"], "refresh_token")
@@ -78,12 +82,12 @@ class OAuth2RefreshTokenTests: XCTestCase {
 		oauth.clientConfig.refreshToken = "pov"
 		oauth.clientConfig.clientSecret = "uvw"
 		
-		let req = try? oauth.tokenRequestForTokenRefresh().asURLRequestFor(oauth)
+		let req = try? oauth.tokenRequestForTokenRefresh().asURLRequest(for: oauth)
 		XCTAssertNotNil(req)
 		XCTAssertNotNil(req?.httpBody)
 		let body = String(data: req!.httpBody!, encoding: String.Encoding.utf8)
 		XCTAssertNotNil(body)
-		let dict = OAuth2.paramsFromQuery(body!)
+		let dict = OAuth2.params(fromQuery: body!)
 		XCTAssertNil(dict["client_id"])
 		XCTAssertNil(dict["client_secret"])
 		let auth = req!.allHTTPHeaderFields?["Authorization"]
@@ -97,12 +101,12 @@ class OAuth2RefreshTokenTests: XCTestCase {
 		oauth.clientConfig.clientSecret = "uvw"
 		oauth.authConfig.secretInBody = true
 		
-		let req = try? oauth.tokenRequestForTokenRefresh(params: ["param": "fool"]).asURLRequestFor(oauth)
+		let req = try? oauth.tokenRequestForTokenRefresh(params: ["param": "fool"]).asURLRequest(for: oauth)
 		XCTAssertNotNil(req)
 		XCTAssertNotNil(req?.httpBody)
 		let body = String(data: req!.httpBody!, encoding: String.Encoding.utf8)
 		XCTAssertNotNil(body)
-		let dict = OAuth2.paramsFromQuery(body!)
+		let dict = OAuth2.params(fromQuery: body!)
 		XCTAssertEqual(dict["client_id"], "abc")
 		XCTAssertEqual(dict["client_secret"], "uvw")
 		XCTAssertEqual(dict["param"], "fool")
